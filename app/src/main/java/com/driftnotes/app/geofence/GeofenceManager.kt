@@ -11,7 +11,10 @@ import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingRequest
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.tasks.Task
 import com.driftnotes.app.data.Note
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.tasks.await
 
 class GeofenceManager(context: Context) {
 
@@ -28,8 +31,32 @@ class GeofenceManager(context: Context) {
 
     fun register(note: Note) {
         val requestId = note.id.toString()
-        if (!hasFineLocationPermission("register", requestId)) return
+        val task = registrationTask(note) ?: return
+        task.addOnSuccessListener {
+            Log.i(TAG, "Geofence registered (requestId=$requestId)")
+        }.addOnFailureListener { exception ->
+            logFailure("register", requestId, exception)
+        }
+    }
 
+    suspend fun registerAndAwait(note: Note): Boolean {
+        val requestId = note.id.toString()
+        val task = registrationTask(note) ?: return false
+        return try {
+            task.await()
+            Log.i(TAG, "Geofence registered (requestId=$requestId)")
+            true
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
+            logFailure("register", requestId, exception)
+            false
+        }
+    }
+
+    private fun registrationTask(note: Note): Task<Void>? {
+        val requestId = note.id.toString()
+        if (!hasFineLocationPermission("register", requestId)) return null
         val geofence = Geofence.Builder()
             .setRequestId(requestId)
             .setCircularRegion(note.lat, note.lng, note.radiusM)
@@ -42,19 +69,14 @@ class GeofenceManager(context: Context) {
             .build()
 
         try {
-            geofencingClient.addGeofences(request, geofencePendingIntent)
-                .addOnSuccessListener {
-                    Log.i(TAG, "Geofence registered (requestId=$requestId)")
-                }
-                .addOnFailureListener { exception ->
-                    logFailure("register", requestId, exception)
-                }
+            return geofencingClient.addGeofences(request, geofencePendingIntent)
         } catch (exception: SecurityException) {
             Log.e(
                 TAG,
                 "Geofence registration failed (requestId=$requestId, statusCode=unavailable): permission denied",
                 exception
             )
+            return null
         }
     }
 

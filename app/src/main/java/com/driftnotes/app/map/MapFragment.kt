@@ -15,7 +15,9 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.driftnotes.app.R
 import com.driftnotes.app.data.Note
 import com.driftnotes.app.data.NoteRepository
@@ -24,6 +26,7 @@ import com.driftnotes.app.databinding.FragmentMapBinding
 import com.driftnotes.app.geofence.GeofenceManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
@@ -43,6 +46,7 @@ class MapFragment : Fragment() {
     private var locationOverlay: MyLocationNewOverlay? = null
     private var temporaryMarker: Marker? = null
     private var radiusPolygon: Polygon? = null
+    private val savedNoteMarkers = mutableMapOf<Long, Marker>()
     private var radiusMeters = DEFAULT_RADIUS_METERS.toDouble()
 
     private val defaultMapCenter = GeoPoint(51.5074, -0.1278)
@@ -94,13 +98,18 @@ class MapFragment : Fragment() {
             if (temporaryMarker != null) showAddNoteDialog()
         }
 
-        updateLocationOverlay()
+        val noteRepository = NoteRepository.get(requireContext().applicationContext)
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                noteRepository.observeAll().collect(::updateSavedNoteMarkers)
+            }
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        updateLocationOverlay()
         _binding?.mapView?.onResume()
+        updateLocationOverlay()
     }
 
     private fun updateLocationOverlay() {
@@ -118,18 +127,23 @@ class MapFragment : Fragment() {
             return
         }
 
-        if (locationOverlay != null) return
-
-        val provider = GpsMyLocationProvider(requireContext()).apply {
-            clearLocationSources()
-            if (hasFineLocation) addLocationSource(LocationManager.GPS_PROVIDER)
-            addLocationSource(LocationManager.NETWORK_PROVIDER)
-            setLocationUpdateMinTime(1_000L)
-            setLocationUpdateMinDistance(5f)
+        val overlay = locationOverlay ?: run {
+            val provider = GpsMyLocationProvider(requireContext()).apply {
+                clearLocationSources()
+                if (hasFineLocation) addLocationSource(LocationManager.GPS_PROVIDER)
+                addLocationSource(LocationManager.NETWORK_PROVIDER)
+                setLocationUpdateMinTime(1_000L)
+                setLocationUpdateMinDistance(5f)
+            }
+            MyLocationNewOverlay(provider, mapView).also {
+                locationOverlay = it
+                mapView.overlays.add(it)
+            }
         }
-        val overlay = MyLocationNewOverlay(provider, mapView)
-        locationOverlay = overlay
-        mapView.overlays.add(overlay)
+        if (!overlay.enableMyLocation()) {
+            Log.w(TAG, "Unable to enable current-location updates")
+            return
+        }
         overlay.runOnFirstFix {
             val firstFix = overlay.myLocation
             if (
@@ -197,6 +211,28 @@ class MapFragment : Fragment() {
     private fun updateRadiusPolygon(center: GeoPoint) {
         val mapView = _binding?.mapView ?: return
         radiusPolygon?.setPoints(Polygon.pointsAsCircle(center, radiusMeters))
+        mapView.invalidate()
+    }
+
+    private fun updateSavedNoteMarkers(notes: List<Note>) {
+        val mapView = _binding?.mapView ?: return
+        val activeNotes = notes.filter { it.isActive }
+        val activeNoteIds = activeNotes.mapTo(mutableSetOf()) { it.id }
+
+        savedNoteMarkers.keys.toList()
+            .filterNot(activeNoteIds::contains)
+            .forEach { noteId ->
+                savedNoteMarkers.remove(noteId)?.let(mapView.overlays::remove)
+            }
+
+        activeNotes.forEach { note ->
+            val marker = savedNoteMarkers[note.id] ?: Marker(mapView).also {
+                savedNoteMarkers[note.id] = it
+                mapView.overlays.add(it)
+            }
+            marker.setPosition(GeoPoint(note.lat, note.lng))
+            marker.setTitle(note.text)
+        }
         mapView.invalidate()
     }
 
@@ -314,7 +350,13 @@ class MapFragment : Fragment() {
                         if (!hasFineLocation || !hasBackgroundLocation) {
                             messageId = R.string.map_note_save_geofence_failure
                         }
-                        GeofenceManager(appContext).register(note.copy(id = id))
+                        val registered = GeofenceManager(appContext)
+                            .registerAndAwait(note.copy(id = id))
+                        if (!registered) {
+                            messageId = R.string.map_note_save_geofence_failure
+                        }
+                    } catch (exception: CancellationException) {
+                        throw exception
                     } catch (exception: Exception) {
                         Log.e(
                             TAG,
@@ -356,15 +398,18 @@ class MapFragment : Fragment() {
         ) == PackageManager.PERMISSION_GRANTED
 
     override fun onPause() {
+        locationOverlay?.disableMyLocation()
         _binding?.mapView?.onPause()
         super.onPause()
     }
 
     override fun onDestroyView() {
+        locationOverlay?.disableMyLocation()
         _binding?.mapView?.onDetach()
         locationOverlay = null
         temporaryMarker = null
         radiusPolygon = null
+        savedNoteMarkers.clear()
         radiusMeters = DEFAULT_RADIUS_METERS.toDouble()
         _binding = null
         super.onDestroyView()
