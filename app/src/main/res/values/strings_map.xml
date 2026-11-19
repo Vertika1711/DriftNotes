@@ -10,5 +10,8 @@
     <string name="map_radius_seekbar_description">Trigger radius in metres</string>
     <string name="map_save">Save</string>
     <string name="map_cancel">Cancel</string>
-    <string name="map_note_saving_unavailable">Note saving is not available yet.</string>
+    <string name="map_note_empty_error">Enter a note before saving.</string>
+    <string name="map_note_save_success">Note saved</string>
+    <string name="map_note_save_failure">Could not save the note. Please try again.</string>
+    <string name="map_note_save_geofence_failure">Note saved, but its reminder could not be registered.</string>
 </resources>

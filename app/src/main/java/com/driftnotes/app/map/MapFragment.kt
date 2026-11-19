@@ -4,18 +4,27 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.location.LocationManager
+import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.SeekBar
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import com.driftnotes.app.R
+import com.driftnotes.app.data.Note
+import com.driftnotes.app.data.NoteRepository
 import com.driftnotes.app.databinding.DialogAddNoteBinding
 import com.driftnotes.app.databinding.FragmentMapBinding
+import com.driftnotes.app.geofence.GeofenceManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -39,6 +48,7 @@ class MapFragment : Fragment() {
     private val defaultMapCenter = GeoPoint(51.5074, -0.1278)
 
     private companion object {
+        const val TAG = "DriftNotesMap"
         const val MIN_RADIUS_METERS = 100
         const val MAX_RADIUS_METERS = 500
         const val RADIUS_STEP_METERS = 50
@@ -226,13 +236,7 @@ class MapFragment : Fragment() {
         val dialog = MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.map_add_note_title)
             .setView(dialogBinding.root)
-            .setPositiveButton(R.string.map_save) { _, _ ->
-                Toast.makeText(
-                    requireContext(),
-                    R.string.map_note_saving_unavailable,
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
+            .setPositiveButton(R.string.map_save, null)
             .setNegativeButton(R.string.map_cancel) { _, _ ->
                 setRadius(initialRadius, marker)
             }
@@ -241,12 +245,108 @@ class MapFragment : Fragment() {
         dialog.setOnCancelListener {
             setRadius(initialRadius, marker)
         }
+        dialog.setOnShowListener {
+            val saveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            val cancelButton = dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
+
+            saveButton.setOnClickListener {
+                val noteText = dialogBinding.noteText.text?.toString()?.trim().orEmpty()
+                if (noteText.isEmpty()) {
+                    dialogBinding.noteInputLayout.error =
+                        getString(R.string.map_note_empty_error)
+                    dialogBinding.noteText.requestFocus()
+                    return@setOnClickListener
+                }
+
+                dialogBinding.noteInputLayout.error = null
+                val position = marker.position
+                val selectedRadiusMeters =
+                    MIN_RADIUS_METERS + dialogBinding.radiusSeekBar.progress * RADIUS_STEP_METERS
+                radiusMeters = selectedRadiusMeters.toDouble()
+                updateRadiusPolygon(position)
+                val note = Note(
+                    text = noteText,
+                    lat = position.latitude,
+                    lng = position.longitude,
+                    radiusM = selectedRadiusMeters.toFloat()
+                )
+                val appContext = requireContext().applicationContext
+
+                saveButton.isEnabled = false
+                cancelButton.isEnabled = false
+                dialogBinding.noteText.isEnabled = false
+                dialogBinding.radiusSeekBar.isEnabled = false
+                dialog.setCancelable(false)
+
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val id = try {
+                        NoteRepository.get(appContext).add(note)
+                    } catch (exception: CancellationException) {
+                        throw exception
+                    } catch (exception: Exception) {
+                        Log.e(TAG, "Failed to save note", exception)
+                        Toast.makeText(
+                            appContext,
+                            R.string.map_note_save_failure,
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        saveButton.isEnabled = true
+                        cancelButton.isEnabled = true
+                        dialogBinding.noteText.isEnabled = true
+                        dialogBinding.radiusSeekBar.isEnabled = true
+                        dialog.setCancelable(true)
+                        dialog.setCanceledOnTouchOutside(true)
+                        return@launch
+                    }
+
+                    var messageId = R.string.map_note_save_success
+                    try {
+                        val hasFineLocation = ContextCompat.checkSelfPermission(
+                            appContext,
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                        ) == PackageManager.PERMISSION_GRANTED
+                        val hasBackgroundLocation =
+                            Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+                                ContextCompat.checkSelfPermission(
+                                    appContext,
+                                    Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                                ) == PackageManager.PERMISSION_GRANTED
+                        if (!hasFineLocation || !hasBackgroundLocation) {
+                            messageId = R.string.map_note_save_geofence_failure
+                        }
+                        GeofenceManager(appContext).register(note.copy(id = id))
+                    } catch (exception: Exception) {
+                        Log.e(
+                            TAG,
+                            "Failed to register geofence for saved note id=$id",
+                            exception
+                        )
+                        messageId = R.string.map_note_save_geofence_failure
+                    }
+
+                    clearTemporaryPin()
+                    Toast.makeText(appContext, messageId, Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
+                }
+            }
+        }
         dialog.show()
     }
 
     private fun setRadius(radius: Double, marker: Marker) {
         radiusMeters = radius
         updateRadiusPolygon(marker.position)
+    }
+
+    private fun clearTemporaryPin() {
+        val mapView = _binding?.mapView ?: return
+        temporaryMarker?.let { mapView.overlays.remove(it) }
+        radiusPolygon?.let { mapView.overlays.remove(it) }
+        temporaryMarker = null
+        radiusPolygon = null
+        radiusMeters = DEFAULT_RADIUS_METERS.toDouble()
+        binding.addNoteButton.isEnabled = false
+        mapView.invalidate()
     }
 
     private fun hasPermission(permission: String): Boolean =
