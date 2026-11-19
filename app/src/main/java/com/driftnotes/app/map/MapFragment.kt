@@ -53,6 +53,7 @@ class MapFragment : Fragment() {
 
     private companion object {
         const val TAG = "DriftNotesMap"
+        const val GEOFENCE_TAG = "DriftGeo"
         const val MIN_RADIUS_METERS = 100
         const val MAX_RADIUS_METERS = 500
         const val RADIUS_STEP_METERS = 50
@@ -337,29 +338,32 @@ class MapFragment : Fragment() {
 
                     var messageId = R.string.map_note_save_success
                     try {
-                        val hasFineLocation = ContextCompat.checkSelfPermission(
-                            appContext,
-                            Manifest.permission.ACCESS_FINE_LOCATION
-                        ) == PackageManager.PERMISSION_GRANTED
                         val hasBackgroundLocation =
                             Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
                                 ContextCompat.checkSelfPermission(
                                     appContext,
                                     Manifest.permission.ACCESS_BACKGROUND_LOCATION
                                 ) == PackageManager.PERMISSION_GRANTED
-                        if (!hasFineLocation || !hasBackgroundLocation) {
-                            messageId = R.string.map_note_save_geofence_failure
+                        if (!hasBackgroundLocation) {
+                            Log.w(
+                                GEOFENCE_TAG,
+                                "Background location permission is not granted " +
+                                    "(noteId=$id); reminders may not trigger while the app is closed"
+                            )
                         }
                         val registered = GeofenceManager(appContext)
                             .registerAndAwait(note.copy(id = id))
-                        if (!registered) {
-                            messageId = R.string.map_note_save_geofence_failure
+                        messageId = when {
+                            !registered -> R.string.map_note_save_geofence_failure
+                            !hasBackgroundLocation ->
+                                R.string.map_note_save_background_location_warning
+                            else -> R.string.map_note_save_success
                         }
                     } catch (exception: CancellationException) {
                         throw exception
                     } catch (exception: Exception) {
                         Log.e(
-                            TAG,
+                            GEOFENCE_TAG,
                             "Failed to register geofence for saved note id=$id",
                             exception
                         )

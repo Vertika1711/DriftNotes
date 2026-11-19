@@ -14,4 +14,5 @@
     <string name="map_note_save_success">Note saved</string>
     <string name="map_note_save_failure">Could not save the note. Please try again.</string>
     <string name="map_note_save_geofence_failure">Note saved, but its reminder could not be registered.</string>
+    <string name="map_note_save_background_location_warning">Note saved, but allow background location to receive reminders when DriftNotes is closed.</string>
 </resources>
