@@ -4,6 +4,12 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.graphics.Paint
+import android.graphics.Typeface
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.StyleSpan
+import android.util.TypedValue
 import android.widget.SeekBar
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
@@ -88,6 +94,7 @@ class NotesListFragment : Fragment() {
 
         // TODO: remove before PR
         binding.fabAddTestNote.setOnClickListener { addTestNote() }
+        binding.textEmpty.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
     }
 
     override fun onDestroyView() {
@@ -140,7 +147,13 @@ class NotesListFragment : Fragment() {
         db.seekbarRadius.progress = ((note.radiusM.toInt() - minRadius) / step).coerceIn(0, 8)
 
         fun updateLabel(progress: Int) {
-            db.textRadiusLabel.text = getString(R.string.notes_radius_label, minRadius + progress * step)
+            val radius = minRadius + progress * step
+            val full = getString(R.string.notes_radius_label, radius)
+            val span = SpannableString(full)
+            val numStr = radius.toString()
+            val start = full.indexOf(numStr)
+            if (start >= 0) span.setSpan(StyleSpan(Typeface.BOLD), start, start + numStr.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            db.textRadiusLabel.text = span
         }
         updateLabel(db.seekbarRadius.progress)
         db.seekbarRadius.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -226,7 +239,7 @@ private class NotesAdapter(
             is ListItem.Header  -> (holder as HeaderVH).bind(item.label)
             is ListItem.NoteRow -> when (holder) {
                 is ActiveVH -> holder.bind(item.note, onDone, onTap, onLongPress)
-                is DoneVH   -> holder.bind(item.note, onTap, onLongPress)
+                is DoneVH   -> holder.bind(item.note, onLongPress)
                 else -> {}
             }
         }
@@ -252,10 +265,11 @@ private class ActiveVH(private val b: ItemNoteActiveBinding) : RecyclerView.View
 }
 
 private class DoneVH(private val b: ItemNoteDoneBinding) : RecyclerView.ViewHolder(b.root) {
-    fun bind(note: Note, onTap: (Note) -> Unit, onLongPress: (Note) -> Unit) {
+    fun bind(note: Note, onLongPress: (Note) -> Unit) {
         b.textNote.text = note.text
+        b.textNote.paintFlags = b.textNote.paintFlags or Paint.STRIKE_THRU_TEXT_FLAG
         b.textMeta.text = metaText(note)
-        b.root.setOnClickListener { onTap(note) }
+        b.root.setOnClickListener(null)   // done notes are not editable
         b.root.setOnLongClickListener { onLongPress(note); true }
     }
 }
