@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notes_empty">No notes yet</string>
+    <string name="notes_section_active">Active</string>
+    <string name="notes_section_done">Done</string>
+    <string name="notes_done">Done</string>
+    <string name="notes_edit_title">Edit note</string>
+    <string name="notes_hint_text">Note text</string>
+    <string name="notes_radius_label">Trigger radius: %d m</string>
+    <string name="notes_save">Save</string>
+    <string name="notes_cancel">Cancel</string>
+    <string name="notes_delete_confirm">Delete this note?</string>
+    <string name="notes_delete">Delete</string>
+    <string name="notes_error_empty">Note text cannot be empty</string>
+</resources>
