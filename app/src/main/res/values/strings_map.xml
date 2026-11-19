@@ -2,4 +2,13 @@
 <resources>
     <string name="map_view_description">OpenStreetMap map</string>
     <string name="map_my_location">My location</string>
+    <string name="map_add_note_here">Add note here</string>
+    <string name="map_add_note_title">Add note</string>
+    <string name="map_note_hint">Write your note</string>
+    <string name="map_radius_format">Radius: %1$d m</string>
+    <string name="map_radius_default">Radius: 150 m</string>
+    <string name="map_radius_seekbar_description">Trigger radius in metres</string>
+    <string name="map_save">Save</string>
+    <string name="map_cancel">Cancel</string>
+    <string name="map_note_saving_unavailable">Note saving is not available yet.</string>
 </resources>
