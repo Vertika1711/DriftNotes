@@ -12,6 +12,4 @@
     <string name="notes_delete_confirm">Delete this note?</string>
     <string name="notes_delete">Delete</string>
     <string name="notes_error_empty">Note text cannot be empty</string>
-    <!-- TODO: remove before PR -->
-    <string name="notes_add_test">Add test note</string>
 </resources>

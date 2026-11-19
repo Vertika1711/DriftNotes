@@ -92,8 +92,6 @@ class NotesListFragment : Fragment() {
             }
         }
 
-        // TODO: remove before PR
-        binding.fabAddTestNote.setOnClickListener { addTestNote() }
         binding.textEmpty.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
     }
 
@@ -189,19 +187,6 @@ class NotesListFragment : Fragment() {
         dialog.show()
     }
 
-    // TODO: remove before PR
-    private fun addTestNote() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            val note = Note(
-                text = "Test note at Trafalgar Square",
-                lat = 51.5080,
-                lng = -0.1281,
-                radiusM = 200f
-            )
-            val id = repo.add(note)
-            GeofenceManager(requireContext()).register(note.copy(id = id))
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------
