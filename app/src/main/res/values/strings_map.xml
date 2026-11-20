@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="map_view_description">OpenStreetMap map</string>
+    <string name="map_place_search_hint">Search for a place</string>
+    <string name="map_place_search">Search</string>
+    <string name="map_place_search_empty">Enter a place to search.</string>
+    <string name="map_place_search_not_found">No matching place found.</string>
+    <string name="map_place_search_failed">Place search failed. Check your connection and try again.</string>
     <string name="map_my_location">My location</string>
     <string name="map_add_note_here">Add note here</string>
     <string name="map_add_note_title">Add note</string>

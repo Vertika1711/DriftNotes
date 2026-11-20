@@ -25,9 +25,16 @@ import com.driftnotes.app.databinding.DialogAddNoteBinding
 import com.driftnotes.app.databinding.FragmentMapBinding
 import com.driftnotes.app.geofence.GeofenceManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -58,7 +65,10 @@ class MapFragment : Fragment() {
         const val MAX_RADIUS_METERS = 500
         const val RADIUS_STEP_METERS = 50
         const val DEFAULT_RADIUS_METERS = 150
+        const val NETWORK_TIMEOUT_MS = 10_000
     }
+
+    private data class PlaceResult(val latitude: Double, val longitude: Double)
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -93,6 +103,10 @@ class MapFragment : Fragment() {
 
         binding.myLocationButton.setOnClickListener {
             locationOverlay?.myLocation?.let(binding.mapView.controller::animateTo)
+        }
+
+        binding.placeSearchButton.setOnClickListener {
+            searchPlace(binding.placeSearchInput.text?.toString().orEmpty())
         }
 
         binding.addNoteButton.setOnClickListener {
@@ -213,6 +227,90 @@ class MapFragment : Fragment() {
         val mapView = _binding?.mapView ?: return
         radiusPolygon?.setPoints(Polygon.pointsAsCircle(center, radiusMeters))
         mapView.invalidate()
+    }
+
+    private fun searchPlace(query: String) {
+        val searchQuery = query.trim()
+        if (searchQuery.isEmpty()) {
+            Toast.makeText(
+                requireContext(),
+                R.string.map_place_search_empty,
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        val searchButton = binding.placeSearchButton
+        val appContext = requireContext().applicationContext
+        searchButton.isEnabled = false
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    searchNominatim(appContext.packageName, searchQuery)
+                }
+                if (result == null) {
+                    Toast.makeText(
+                        appContext,
+                        R.string.map_place_search_not_found,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    val position = GeoPoint(result.latitude, result.longitude)
+                    _binding?.mapView?.let { mapView ->
+                        mapView.controller.animateTo(position)
+                        placeOrMoveMarker(position)
+                    }
+                }
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                Log.e(TAG, "Place search request failed", exception)
+                Toast.makeText(
+                    appContext,
+                    R.string.map_place_search_failed,
+                    Toast.LENGTH_SHORT
+                ).show()
+            } finally {
+                if (_binding != null) searchButton.isEnabled = true
+            }
+        }
+    }
+
+    private fun searchNominatim(packageName: String, query: String): PlaceResult? {
+        val encodedQuery = URLEncoder.encode(query, Charsets.UTF_8.name())
+        val url = "https://nominatim.openstreetmap.org/search" +
+            "?q=$encodedQuery&format=json&limit=1"
+        val connection = URL(url).openConnection() as HttpURLConnection
+        try {
+            connection.requestMethod = "GET"
+            connection.connectTimeout = NETWORK_TIMEOUT_MS
+            connection.readTimeout = NETWORK_TIMEOUT_MS
+            connection.setRequestProperty("User-Agent", "DriftNotes ($packageName)")
+            connection.setRequestProperty("Accept", "application/json")
+
+            val responseCode = connection.responseCode
+            if (responseCode !in 200..299) {
+                throw IOException("Nominatim returned HTTP $responseCode")
+            }
+
+            val response = connection.inputStream
+                .bufferedReader(Charsets.UTF_8)
+                .use { it.readText() }
+            val firstResult = JSONArray(response).optJSONObject(0) ?: return null
+            val latitude = firstResult.optString("lat").toDoubleOrNull()
+                ?: throw IOException("Nominatim response did not contain a valid latitude")
+            val longitude = firstResult.optString("lon").toDoubleOrNull()
+                ?: throw IOException("Nominatim response did not contain a valid longitude")
+            if (
+                !latitude.isFinite() || latitude !in -90.0..90.0 ||
+                !longitude.isFinite() || longitude !in -180.0..180.0
+            ) {
+                throw IOException("Nominatim returned invalid coordinates")
+            }
+            return PlaceResult(latitude, longitude)
+        } finally {
+            connection.disconnect()
+        }
     }
 
     private fun updateSavedNoteMarkers(notes: List<Note>) {
