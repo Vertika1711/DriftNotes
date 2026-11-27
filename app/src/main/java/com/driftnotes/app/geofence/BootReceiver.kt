@@ -23,7 +23,10 @@ class BootReceiver : BroadcastReceiver() {
                 val notes = NoteRepository.get(appContext).getActive()
                 Log.i(TAG, "Retrieved ${notes.size} active notes")
                 Log.i(TAG, "Starting geofence restoration")
-                GeofenceManager(appContext).registerAll(notes)
+                val geofenceManager = GeofenceManager(appContext)
+                notes.forEach { note ->
+                    geofenceManager.registerAndAwait(note)
+                }
             } catch (exception: Exception) {
                 Log.e(TAG, "Geofence restoration failed after boot completed", exception)
             } finally {
