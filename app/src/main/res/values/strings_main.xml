@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="permission_foreground_explanation">DriftNotes needs location access to show you on the map and know when you arrive.</string>
+    <string name="permission_background_explanation">Allow background location so reminders can fire when the app is closed.</string>
+    <string name="permission_background_android_11_explanation">In app settings, open Location and choose &quot;Allow all the time&quot; so reminders can fire when the app is closed.</string>
+    <string name="permission_notifications_explanation">Allow notifications so DriftNotes can alert you when you arrive.</string>
+    <string name="permission_continue">Continue</string>
+    <string name="permission_not_now">Not now</string>
+    <string name="reminder_permissions_banner">Reminders need location &quot;all the time&quot; and notifications.</string>
+    <string name="open_settings">Open settings</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="location_services_disabled">Turn on Location Services to use location reminders.</string>
+    <string name="location_services_settings">Location settings</string>
+</resources>
