@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="map_view_description">OpenStreetMap map</string>
+    <string name="map_place_search_hint">Search for a place</string>
+    <string name="map_place_search">Search</string>
+    <string name="map_place_search_empty">Enter a place to search.</string>
+    <string name="map_place_search_not_found">No matching place found.</string>
+    <string name="map_place_search_failed">Place search failed. Check your connection and try again.</string>
+    <string name="map_my_location">My location</string>
+    <string name="map_add_note_here">Add note here</string>
+    <string name="map_add_note_title">Add note</string>
+    <string name="map_note_hint">Write your note</string>
+    <string name="map_radius_format">Radius: %1$d m</string>
+    <string name="map_radius_default">Radius: 150 m</string>
+    <string name="map_radius_seekbar_description">Trigger radius in metres</string>
+    <string name="map_save">Save</string>
+    <string name="map_cancel">Cancel</string>
+    <string name="map_note_empty_error">Enter a note before saving.</string>
+    <string name="map_note_save_success">Note saved</string>
+    <string name="map_note_save_failure">Could not save the note. Please try again.</string>
+    <string name="map_note_save_geofence_failure">Note saved, but its reminder could not be registered.</string>
+    <string name="map_note_save_background_location_warning">Note saved, but allow background location to receive reminders when DriftNotes is closed.</string>
+</resources>

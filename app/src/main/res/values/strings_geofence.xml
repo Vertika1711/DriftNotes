@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="geofence_notification_channel_name">DriftNotes Reminders</string>
+    <string name="geofence_notification_channel_description">Reminders when you arrive near a saved note.</string>
+    <string name="geofence_notification_title">You\'re near your note</string>
+    <string name="geofence_notification_generic_body">You have a reminder nearby.</string>
+</resources>
